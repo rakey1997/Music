@@ -64,7 +64,7 @@ def getRedirectUrl(url):
         'Referer': 'http://music.163.com',
     }
 
-    result1 = requests.get(url=str(songurl), headers=headers, verify=False, allow_redirects=False,timeout=10)
+    result1 = requests.get(url=songurl, headers=headers, verify=False, allow_redirects=False,timeout=10)
     result = result1.content
     new_requests_url = result1.headers['location']
     print('歌曲下载网址为：' + new_requests_url)
@@ -112,10 +112,23 @@ def cbk(a,b,c):
 
 ##############################主程序####################################
 start = time.perf_counter()  #时间开始
+##############################替换不适合的名字##########################
+def rUnsupportChar(s):  # 替换不能作为目录名的字符 <> : * " ? |
+    unSupChar = r'''
+    <>:*"?\
+    '''
+    supChar=r'''
+    ()-^~$-
+    '''
+    trans=str.maketrans(unSupChar,supChar)
+    s = s.translate(trans)
+    return s
 ###################参数设置区###########################################
 #需要下载的歌曲ID
-# sid='574566207'
-sid='1311347412'
+# sid='526116053'
+# sid='1311347412'
+#需要下载的歌曲网址
+musicurl='https://music.163.com/discover/toplist?id=2809513713'
 # 定义要存储音乐的路径
 path='D:\\14 音乐\\音乐'
 ###################创建文件夹###########################################
@@ -124,44 +137,59 @@ if os.path.exists(path):
 else:
     os.makedirs(path)
     print('已为您创建目录：%s'%path)
-##############################获取歌名####################################
-musicurl='https://music.163.com/song?id='+str(sid)
+##############################获取歌曲id列表####################################
 soup=creatSoup(musicurl)
-Title=soup.find("title").get_text()
-info_Org=Title.split('-')
-info=[]
-for info1 in info_Org:
-    if ' ' in info1:
-        info.append(info1.strip(' ').replace('/','_').replace(':',''))
-singerName,songName=info[0:2]
-#############################下载歌词####################################
-lyricurl = 'https://music.163.com/api/song/lyric?'+'id='+sid+'&lv=1&kv=1&tv=-1'  #歌词地址
-print('歌词网址为：%s' %(lyricurl))
-soup=creatSoup(lyricurl)
-data = soup.get_text('lrc')
-contents = json.loads(data)
-lyric_Org=contents['lrc'].get('lyric').split('\n')
-regex = re.compile(r'\[.*\]')
-lyric=[]
-for i in range(len(lyric_Org)):
-    if '[0' in lyric_Org[i]:
-        lyric.append(re.sub(regex, '', lyric_Org[i].strip()))
+Title=soup.find("textarea").get_text()
+song_json=json.loads(Title)
+songid_list=[]
+for detail in song_json:
+    songid=str(detail['id'])
+    songname=detail['name']
+    songid_list.append(songid)
+for sid in songid_list:
+    print(sid)
+    # ##############################获取歌名####################################
+    musicurl='https://music.163.com/song?id='+sid
+    soup=creatSoup(musicurl)
+    Title=soup.find("title").get_text()
+    info_Org=Title.split('-')
+    info=[]
+    for info1 in info_Org:
+        if ' ' in info1:
+            info.append(info1.strip(' ').replace('/','_').replace(':',''))
+    singerName,songName=info[0:2]
+    #############################下载歌词####################################
+    lyricurl = 'https://music.163.com/api/song/lyric?'+'id='+sid+'&lv=1&kv=1&tv=-1'  #歌词地址
+    print('歌词网址为：%s' %(lyricurl))
+    soup=creatSoup(lyricurl)
+    data = soup.get_text('lrc')
+    contents = json.loads(data)
+    if (contents.get('nolyric')):
+        print('没有歌词')
     else:
-        lyric.append(lyric_Org[i][(lyric_Org[i].find(':')+1):(len(lyric_Org[i])-1)])
-lyric_New=singerName+'--'+songName+'\n'+'\n'.join(lyric)
-print(lyric_New)
-###################通过歌手名及歌曲名确定参数，并写入文本###########################################
-lyricName = str(singerName)+'-'+str(songName)+'.txt'
-lyricPath=path+'\\'+lyricName
-writeTxt(lyricPath,lyric_New)
-##############################下载歌曲####################################
-songurl='http://music.163.com/song/media/outer/url?id='+str(sid)+'.mp3'
-musicpath = path+'\\'+str(singerName)+'-'+str(songName)+'.mp3'
-print('准备下载歌曲，路径为：%s'%musicpath)
-songurl_New=getRedirectUrl(songurl)
-download(songurl_New,musicpath)
-print('音乐下载完毕，保存在：%s'%musicpath)
-end = time.perf_counter()  ##时间结束
-total_time = end - start
-print('写入完毕，歌词歌曲保存路径：%s,%s，请查看'%(lyricPath,musicpath))
-print("总耗时:%s秒,平均单曲下载时间为%f秒" %(total_time,total_time))
+        lyric_Org=contents['lrc'].get('lyric').split('\n')
+        regex = re.compile(r'\[.*\]')
+        lyric=[]
+        for i in range(len(lyric_Org)):
+            if '[0' in lyric_Org[i]:
+                lyric.append(re.sub(regex, '', lyric_Org[i].strip()))
+            else:
+                lyric.append(lyric_Org[i][(lyric_Org[i].find(':')+1):(len(lyric_Org[i])-1)])
+        lyric_New=singerName+'--'+songName+'\n'+'\n'.join(lyric)
+        print(lyric_New)
+    ###################通过歌手名及歌曲名确定参数，并写入文本###########################################
+    str=rUnsupportChar(singerName)+'-'+rUnsupportChar(songName)
+    lyricName =str +'.txt'
+    lyricPath=path+'\\'+lyricName
+    writeTxt(lyricPath,lyric_New)
+    ##############################下载歌曲####################################
+    songurl='http://music.163.com/song/media/outer/url?id='+sid+'.mp3'
+    musicpath = path+'\\'+str+'.mp3'
+    print('准备下载歌曲，路径为：%s'%musicpath)
+    songurl_New=getRedirectUrl(songurl)
+    download(songurl_New,musicpath)
+    print('音乐下载完毕，保存在：%s'%musicpath)
+    end = time.perf_counter()  ##时间结束
+    total_time = end - start
+    print('写入完毕，歌词歌曲保存路径：%s,%s，请查看'%(lyricPath,musicpath))
+    print("总耗时:%s秒,平均单曲下载时间为%f秒" %(total_time,total_time))
