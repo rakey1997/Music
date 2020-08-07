@@ -2,7 +2,7 @@
 # encoding=utf-8
 # author = ‘Rakey’ 
 
-import os,random,requests, re,time,json,urllib.request
+import os,random,requests, re,time,json,urllib.request,datetime
 from bs4 import BeautifulSoup
 
 # 1.Requests得到html源码
@@ -128,17 +128,11 @@ def rUnsupportChar(s):  # 替换不能作为目录名的字符 <> : * " ? |
 # sid='526116053'
 # sid='1311347412'
 #需要下载的歌曲网址
-musicurl='https://music.163.com/discover/toplist?id=2809513713'
-# 定义要存储音乐的路径
-path='D:\\14 音乐\\音乐'
-###################创建文件夹###########################################
-if os.path.exists(path):
-    print(path+'is created')
-else:
-    os.makedirs(path)
-    print('已为您创建目录：%s'%path)
+musicurl='https://music.163.com/discover/toplist?id='
+id='19723756'
 ##############################获取歌曲id列表####################################
-soup=creatSoup(musicurl)
+soup=creatSoup(musicurl+id)
+category=soup.find('a',attrs={'class':'s-fc0','href':re.compile('{}'.format(id))}).get_text()
 Title=soup.find("textarea").get_text()
 song_json=json.loads(Title)
 songid_list=[]
@@ -146,6 +140,14 @@ for detail in song_json:
     songid=str(detail['id'])
     songname=detail['name']
     songid_list.append(songid)
+# 定义要存储音乐的路径
+path = 'D:\\14 音乐\\{}'.format(category+'_'+str(datetime.datetime.now()).split(" ")[0].replace('-',''))
+###################创建文件夹###########################################
+if os.path.exists(path):
+    print(path + 'is created')
+else:
+    os.makedirs(path)
+    print('已为您创建目录：%s' % path)
 for sid in songid_list:
     print(sid)
     # ##############################获取歌名####################################
@@ -164,7 +166,7 @@ for sid in songid_list:
     soup=creatSoup(lyricurl)
     data = soup.get_text('lrc')
     contents = json.loads(data)
-    if (contents.get('nolyric')):
+    if (contents.get('nolyric') or contents.get('uncollected')):
         print('没有歌词')
     else:
         lyric_Org=contents['lrc'].get('lyric').split('\n')
